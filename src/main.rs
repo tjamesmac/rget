@@ -1,14 +1,32 @@
 use openssl::ssl::{SslConnector, SslMethod};
+use std::env;
 use std::io::{Read, Write};
 use std::net::{TcpStream, ToSocketAddrs};
+use url::Url;
 
 fn main() {
-    // let host = "pokeapi.co";
-    let host = "www.google.com";
-    let port = 443;
-    let host_and_port = (host, port);
+    let args: Vec<String> = env::args().collect();
 
-    println!("Connecting to {}", host);
+    let verb = &args[1];
+
+    let before_url = Url::parse(&args[2]);
+
+    let url = match before_url {
+        Ok(url) => url,
+        Err(e) => {
+            panic!("Error parsing URL: {}", e);
+        }
+    };
+
+    let port = match url.scheme() {
+        "https" => 443,
+        "http" => 80,
+        _ => panic!("Unknown scheme: {}", url.scheme()),
+    };
+
+    let host = url.host_str().unwrap();
+
+    let host_and_port = (host, port);
 
     let ip = match host_and_port.to_socket_addrs() {
         Ok(mut addresses) => match addresses.next() {
@@ -24,8 +42,6 @@ fn main() {
         }
     };
 
-    println!("Connecting to {}", ip);
-
     let stream = match TcpStream::connect(ip) {
         Ok(stream) => stream,
         Err(er) => {
@@ -37,6 +53,7 @@ fn main() {
     println!("Got a stream");
 
     let connector = SslConnector::builder(SslMethod::tls()).unwrap().build();
+
     let mut ssl_stream = match connector.connect(host, stream) {
         Ok(stream) => stream,
         Err(e) => {
@@ -45,10 +62,10 @@ fn main() {
         }
     };
 
-    println!("ssl_stream: {:?}", ssl_stream);
-
     let request = format!(
-        "GET / HTTP/1.1\r\nHost: {}\r\nAccept: */*\r\nConnection: close\r\n\r\n",
+        "{} {} HTTP/1.1\r\nHost: {}\r\nAccept: */*\r\nConnection: close\r\n\r\n",
+        verb.to_uppercase(),
+        url.path(),
         host
     );
 
@@ -56,9 +73,8 @@ fn main() {
         eprintln!("Failed to write to stream: {}", e);
     }
 
-    println!("request!");
-
     let mut response = String::new();
+
     if let Err(e) = ssl_stream.read_to_string(&mut response) {
         eprintln!("Failed to read from stream: {}", e);
     }
