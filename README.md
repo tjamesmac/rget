@@ -8,7 +8,7 @@ Makes a http request to specified endpoint
 
 e.g.
 
-```
+```shell
 cargo run get https://pokeapi.co/api/v2/pokemon/ditto
 
 ```
